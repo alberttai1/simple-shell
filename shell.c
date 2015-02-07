@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include "parse.h"
+#include <fcntl.h>
 
 #define MAX_LENGTH 1024
 #define DELIMITERS " \t\r\n"
@@ -15,6 +16,10 @@
 enum
 BUILTIN_COMMANDS { NO_SUCH_BUILTIN=0, EXIT,HISTORY};
 
+
+// Description: This function is to check if the command is a built in command for the shell
+// @param: char* cmd: A string 
+// @return: int: The integer associated with the built in command
 int isBuiltInCommand(char *cmd)
 { 
   if ( strncmp(cmd, "exit", strlen("exit")) == 0){
@@ -25,13 +30,17 @@ int isBuiltInCommand(char *cmd)
   }
   return NO_SUCH_BUILTIN;
 }
-// This function is for printing the prompt in a format of "username > "
+
+// Description: This function is for printing the prompt in a format of "username > "
+// return: char* username: The prompt for the user in the format of "username >" or 
+// "Anon >" if a username cannot be grabbed from the system. 
 char* printPrompt(){
 	char *username = getenv("USER");
 	if (username == NULL) return "Anon > ";  
 	strcmp(username, strcat(username, " > "));
 	return username; 
 }
+
 int main (int argc, char **argv){
 	char line[MAX_LENGTH];
 	char *cmdLine; 
@@ -41,24 +50,31 @@ int main (int argc, char **argv){
 
     pid_t pid;
 
+    // Start recording history here. 
     using_history (); 
 
+    // Keep looping until user chooses to Exit, or a error occurs 
 	while(1){
+		// Start reading the line and show the prompt as well 
 		cmdLine = readline(prompt);
 
+		// Add command line to history if not empty
 		if (*cmdLine && cmdLine)
 		{
 			add_history(cmdLine);
 		}
 
+		// Initalize the parseInfo, making sure the variables are set to default 
 		init_info (info);
+
+		// Each line entered, parse it into correct format for parse info 
 		info  = parse(cmdLine);
 
+		// Check if the parsedInfo is null and if so free the command line and continue 
 		if (info == NULL){
 			free(cmdLine); 
 			continue; 
 		}
-
 		print_info(info);
 
 		currentCommand = &info->CommArray[0];
@@ -69,8 +85,8 @@ int main (int argc, char **argv){
 		}
 		if (isBuiltInCommand(currentCommand->command) == EXIT)
 		{
-			printf("Exiting The Shell..."); 
-			exit(1); 
+			printf("Exiting The Shell...\n"); 
+			exit(0); 
 		}
 		else if(isBuiltInCommand(currentCommand->command) == HISTORY)
 		{
@@ -116,7 +132,7 @@ int main (int argc, char **argv){
 			}
 			else if(the_list)
 			{
-				printf("Error: You have requested more history than there is.\n ");
+				printf("Error: You have requested more history than there is.\n");
 			}
 			else
 			{
@@ -129,7 +145,7 @@ int main (int argc, char **argv){
 			pid = fork();
 			if (pid < 0)
 			{
-				perror("Fork()"); 
+				perror("Fork had an issue"); 
 			}
 			if (pid > 0)
 			{
@@ -137,11 +153,24 @@ int main (int argc, char **argv){
 			}
 			else
 			{
-	          if (execvp(currentCommand->command, currentCommand->ArgList) < 0) 
-	          {     /* execute the command  */
-               printf("*** ERROR: exec failed\n");
-               exit(1);
-	          }
+				int in, out; 
+				if (info->boolInfile)
+				{
+					in = open(info->inFile, O_RDONLY); 
+					dup2(in, 0); 
+					close(in);
+				}
+				if (info->boolOutfile)
+				{
+					out = open(info->outFile, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+					dup2(out, 1); 
+					close(out);
+				}
+				if (execvp(currentCommand->command, currentCommand->ArgList) < 0) 
+				{     /* execute the command  */
+				printf("%s: command not found\n", currentCommand->command);
+				exit(1);
+				}
 			}			
 		}
 	}

@@ -1,0 +1,5 @@
+apples
+bananas
+kiwis
+oranges
+pears
